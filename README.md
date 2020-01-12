@@ -7,7 +7,7 @@ This project deploys a simple sinatra application to AWS ECS. The application ru
 The project creates an Ubuntu docker container with all the necessary packages like git, aws cli, docker, python and jq. This container is then used to create the necessary ECS infrastructure on AWS, clone the sinatra app from git repository and deploy to AWS ECS cluster.
 
 ## Architecture
-![alt text](https://raw.githubusercontent.com/viveksharma2175/cfn-simple-sintara-app/master/gitimages/REA.png)
+![alt text](https://raw.githubusercontent.com/viveksharma2175/cfn-simple-sintara-app/master/gitimages/REA1.png)
 
 ## Design
 1. The application is deployed using docker containers which provides flexibility and assurance that it will work on any server with just docker installed.
