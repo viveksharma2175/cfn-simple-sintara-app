@@ -1,0 +1,74 @@
+# Sinatra Application Deployment to AWS ECS
+
+This project deploys a simple sinatra application to AWS ECS. The application listens on port 80 and returns "Hello World".
+
+## Background
+
+The project creates an Ubuntu docker container with all the necessary packages like git, aws cli, docker, python and jq. This container is then used to create the necessary ECS infrastructure on AWS, clone the sinatra app from git repository and deploy to AWS ECS cluster.
+
+![alt text](https://raw.githubusercontent.com/viveksharma2175/cfn-simple-sintara-app/master/gitimages/REA.png)
+
+## Design
+1. The application is deployed using docker containers which provides flexibility and assurance that it will work on any server with just docker installed.
+2. The conatiners are deployed on ECS cluster with auto scaling enabled which scales the servers and the containers based on CPU usage and provides high availabilty.
+3. The architecture provides reliability as the instances can be spun in different availibility zones.to prevent from instance failure in a particular availibility zone.
+4. The sever configuration like region, instance type, number of instances and the number of containers, container CPU and memory allocation, path, etc. are configurable using the param file xxxx_config.json.
+5. The application runs a docker container of Phusion Passenger Application + Nginx server. 
+
+## Requirements
+- AWS user Account with rights to create the above resources and the `Access Key ID` and the `Secret Access Key`
+- `Docker` installed on the system from where the commands will be initiated
+- Key to access the ECS instances. The key named passed in the config files is InterviewKey. 
+
+
+## Assumptions
+
+- The application will only listen to request on port 80, coming from the load balancer. 
+- A new deployment to the cluster will result in overwriting the existing service.  Deployment startegies like blue-green, canary, etc. is not implemented. 
+- The commands will be run on a linux machine. (To run on a windows machine install git bash)
+
+## Resource to be Created
+- VPC
+- Public and Private Subnets
+- Route Table
+- Internet Gateway
+- NAT Gateway
+- ECS Cluster, Service and Tasks
+- Auto scaling of ECS instances in cluster and the containers running in the instances
+- Load Balancer listening to http requests on port 80
+- Bastion Server
+
+## Steps to Create Infrastructure
+1. Get the file on the local system
+    - Clone this repository on your local system
+    - From the directory of the Dockerfile, open a terminal
+    - Make necessary changes to the config.json files if needed.
+    - Fire command to build the docker container, `docker build -t cicd .`. This can take a few minutes during the initial run to get the base image and setup the container with necessary packages. (This may take around 15 minutes approximately for the first run)
+2. Create the virtual private cloud in AWS
+    - Fire the command in the terminal: 
+        `docker run -e "event=vpcsetup" -e "aws_region=<<AWS-REGION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" cicd:latest`
+3. To create the ECS cluster and the ECR repository
+    - Fire the command in the terminal: 
+        `docker run -e "event=clustersetup" -e "aws_region=<<AWS-REGION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" cicd:latest`
+4. Clone the repo with the sinatra app, build a docker image and push to repository    
+    - Fire the command by replacing the values in << >> with AWS account details in the terminal: 
+        `docker run -e "event=build" -e "aws_region=<<AWS-REGION>>" -e "build_version=<<BUILD-VERSION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" -v /var/run/docker.sock:/var/run/docker.sock -it cicd:latest`
+5. Deploy the docker image from the ECR repository to ECS   
+    - Fire the command by replacing the values in << >> with AWS account details in the terminal: 
+        `docker run -e "event=deploy" -e "build_version=<<BUILD-VERSION>>" -e "release_version=<<DEPLOYMENT-VERSION>>" -e "aws_region=<<AWS-REGION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" cicd:latest`
+6. Get the DNS name for the load balancer
+    - The DNS name can be found from the Load Balancer service page in AWS account (Service > EC2 > Load Balancers)
+    OR
+    - Cloudformation page in AWS account, select ClusterSetup and form Outputs tab and the value of the URL
+
+Incase of any errors, log in to the AWS account and go to the cloudformation service and select the respective stack for the error message
+
+## Steps to Destroy Infrastructure
+1. The infrastructure can be destroyed from the cloudformation service in AWS. 
+    - First, delete the images pushed to the ECR repository to avoid errors. 
+    - Second, delete the ServiceSetup stack and wait for it to complete.
+    - Third, delete the ClusterSetup stack and wait for it to complete.
+    - Fourth, delete the VPCeSetup stack and wait for it to complete.
+
+
+If you have any questions please feel free to contact viveksharma2175@gmail.com

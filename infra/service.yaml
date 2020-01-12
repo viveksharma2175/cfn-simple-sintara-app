@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates an infrastructure to deploy docker containers on AWS ECS
+Parameters:
+  VPCSetupStackName:
+    Description: Stack name used for CFN of VPC setup
+    Type: String
+  ECSClusterStackName:
+    Type: String
+    Description: The name of the parent ECS cluster stack that you created. Necessary
+                 to locate and reference resources created by that stack.
+  ServiceName:
+    Type: String
+    Description: A name for the service
+  DockerImageTag:
+    Type: String
+    Description: The Tag of docker image that we want deploy. Typically this value will be part of build job artifact.
+  ContainerPort:
+    Type: Number
+    Description: What port number the application inside the docker container is binding to
+  ContainerCpu:
+    Type: Number
+    Description: How much CPU to give the container. 1024 is 1 CPU
+  ContainerMemory:
+    Type: Number
+    Description: How much memory in megabytes to give the container
+  Path:
+    Type: String
+    Description: A path on the private application load balancer that this service
+                 should be connected to. Use * to send all load balancer
+                 traffic to this service.
+  Priority:
+    Type: Number
+    Description: The priority for the routing rule added to the load balancer.
+                 This only applies if your have multiple services which have been
+                 assigned to different paths on the load balancer.
+  DesiredCount:
+    Type: Number
+    Description: How many copies of the service task to run
+  TaskMinCount:
+    Type: Number
+    Description: The minimum copies of the service task to run
+  TaskMaxCount:
+    Type: Number
+    Description: The maximum copies of the service task to run
+  ReleaseNumber:
+    Type: String
+    Description: The release number
+
+Resources:
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Join ["-", [!Ref 'ServiceName', !Ref 'ReleaseNumber']]
+      ContainerDefinitions:
+        - Name: !Join ["-", [!Ref 'ServiceName', !Ref 'ReleaseNumber']]
+          Cpu: !Ref 'ContainerCpu'
+          Memory: !Ref 'ContainerMemory'
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ServiceName}:${DockerImageTag}'
+          PortMappings:
+            - ContainerPort: !Ref 'ContainerPort'
+          Environment:
+            - Name: CONTAINER_PLATFORM
+              Value: 'ecs'            
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: LoadBalancerRule
+    Properties:
+      ServiceName:  !Join ["-", [!Ref 'ServiceName', !Ref 'ReleaseNumber']]
+      Cluster:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'ECSClusterStackName', 'ClusterName']]      
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: !Ref 'DesiredCount'
+      TaskDefinition: !Ref 'TaskDefinition'
+      LoadBalancers:
+        - ContainerName: !Join ["-", [!Ref 'ServiceName', !Ref 'ReleaseNumber']]
+          ContainerPort: !Ref 'ContainerPort'
+          TargetGroupArn: !Ref 'TargetGroup'
+      PlacementStrategies:
+        - Type: spread
+          Field: instanceId
+        - Type: spread
+          Field: attribute:ecs.availability-zone
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 60
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Name: !Join ["-", [!Ref 'ServiceName', !Ref 'ReleaseNumber']]
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: 
+        Fn::ImportValue:
+          !Join [':', [!Ref 'VPCSetupStackName', 'VPC']]  
+      Tags:
+        - Key: ReleaseNumber
+          Value: !Ref 'ReleaseNumber'
+
+  LoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values: 
+            - !Ref Path
+      ListenerArn: 
+        Fn::ImportValue:
+          !Join [':', [!Ref 'ECSClusterStackName', 'PrivateLoadBalancerListener']]      
+      Priority: !Ref Priority
+  ECSServiceAutoScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: Service
+    Properties:
+      ResourceId:
+        Fn::Join:
+          - '/'
+          - - service
+            - Fn::ImportValue: !Sub ${ECSClusterStackName}:ClusterName
+            - !GetAtt Service.Name
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ServiceNamespace: 'ecs'
+      RoleARN: !GetAtt 'TaskAutoscalingRole.Arn'
+      MaxCapacity: !Ref 'TaskMaxCount'
+      MinCapacity: !Ref 'TaskMinCount'
+  TaskAutoscalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [application-autoscaling.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      ManagedPolicyArns:
+        - !Ref ServiceAutoscalingPolicy
+  ServiceAutoscalingPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              # Rules which allow ECS task to read secrets from Credstash Dynamo DB table
+              - 'application-autoscaling:*'
+              - 'cloudwatch:DescribeAlarms'
+              - 'cloudwatch:PutMetricAlarm'
+              - 'ecs:DescribeServices'
+              - 'ecs:UpdateService'
+            Resource: '*'
+  ScaleDownPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ECSServiceAutoScalableTarget
+    Properties:
+      PolicyName:
+        Fn::Join:
+          - '/'
+          - - scale
+            - Fn::ImportValue: !Sub ${ECSClusterStackName}:ClusterName
+            - !GetAtt Service.Name
+            - down
+      PolicyType: StepScaling
+      ResourceId:
+        Fn::Join:
+          - '/'
+          - - service
+            - Fn::ImportValue: !Sub ${ECSClusterStackName}:ClusterName
+            - !GetAtt Service.Name
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ServiceNamespace: 'ecs'
+      StepScalingPolicyConfiguration:
+        AdjustmentType: 'ChangeInCapacity'
+        StepAdjustments:
+          - MetricIntervalUpperBound: 0
+            ScalingAdjustment: -1
+        MetricAggregationType: 'Average'
+        Cooldown: 60
+  ScaleUpPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ECSServiceAutoScalableTarget
+    Properties:
+      PolicyName:
+        Fn::Join:
+          - '/'
+          - - scale
+            - Fn::ImportValue: !Sub ${ECSClusterStackName}:ClusterName
+            - !GetAtt Service.Name
+            - up
+      PolicyType: StepScaling
+      ResourceId:
+        Fn::Join:
+          - '/'
+          - - service
+            - Fn::ImportValue: !Sub ${ECSClusterStackName}:ClusterName
+            - !GetAtt Service.Name
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ServiceNamespace: 'ecs'
+      StepScalingPolicyConfiguration:
+        AdjustmentType: 'ChangeInCapacity'
+        StepAdjustments:
+          - MetricIntervalLowerBound: 0
+            MetricIntervalUpperBound: 15
+            ScalingAdjustment: 1
+          - MetricIntervalLowerBound: 15
+            MetricIntervalUpperBound: 25
+            ScalingAdjustment: 2
+          - MetricIntervalLowerBound: 25
+            ScalingAdjustment: 3
+        MetricAggregationType: 'Average'
+        Cooldown: 60
+  LowCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName:
+        Fn::Join:
+          - '-'
+          - - low-cpu
+            - Fn::ImportValue: !Sub ${ECSClusterStackName}:ClusterName
+            - !GetAtt Service.Name
+      AlarmDescription:
+        Fn::Join:
+          - ' '
+          - - "Low CPU utilization for service"
+            - !Ref 'ServiceName'
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !GetAtt Service.Name
+        - Name: ClusterName
+          Value: 
+            Fn::ImportValue:
+              !Join [':', [!Ref 'ECSClusterStackName', 'ClusterName']]
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 20
+      ComparisonOperator: LessThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleDownPolicy
+
+  HighCpuUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName:
+        Fn::Join:
+          - '-'
+          - - high-cpu
+            - Fn::ImportValue: !Sub ${ECSClusterStackName}:ClusterName
+            - !GetAtt Service.Name
+      AlarmDescription:
+        Fn::Join:
+          - ' '
+          - - "High CPU utilization for service"
+            - !Ref 'ServiceName'
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ServiceName
+          Value: !GetAtt Service.Name
+        - Name: ClusterName
+          Value:
+            Fn::ImportValue: !Sub ${ECSClusterStackName}:ClusterName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 70
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ScaleUpPolicy

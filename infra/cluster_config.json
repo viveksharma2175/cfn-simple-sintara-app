@@ -1,0 +1,38 @@
+[
+  {
+    "ParameterKey": "VPCSetupStackName",
+    "ParameterValue": "VPCSetup"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t2.micro"
+  },
+  {
+    "ParameterKey": "ECSClusterName",
+    "ParameterValue": "sinatra-app-cluster"
+  },
+  {
+    "ParameterKey": "DesiredCapacity",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "AsgMaxSize",
+    "ParameterValue": "3"
+  },
+  {
+    "ParameterKey": "ECSAMI",
+    "ParameterValue": "ami-0adc350d7c7a2259f"
+  },
+  {
+    "ParameterKey": "AsgMinSize",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "ApplicationName",
+    "ParameterValue": "simple-sinatra-app"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "InterviewKey"
+  }
+]

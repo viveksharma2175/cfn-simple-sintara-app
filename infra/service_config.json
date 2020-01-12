@@ -1,0 +1,45 @@
+[{
+  "ParameterKey": "VPCSetupStackName",
+  "ParameterValue": "VPCSetup"
+},
+  {
+    "ParameterKey": "ECSClusterStackName",
+    "ParameterValue": "ClusterSetup"
+  },
+  {
+    "ParameterKey": "ServiceName",
+    "ParameterValue": "simple-sinatra-app"
+  },
+  {
+    "ParameterKey": "ContainerPort",
+    "ParameterValue": "80"
+  },
+  {
+    "ParameterKey": "ContainerCpu",
+    "ParameterValue": "256"
+  },
+  {
+    "ParameterKey": "ContainerMemory",
+    "ParameterValue": "256"
+  },
+  {
+    "ParameterKey": "Path",
+    "ParameterValue": "/"
+  },
+  {
+    "ParameterKey": "Priority",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "DesiredCount",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "TaskMinCount",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "TaskMaxCount",
+    "ParameterValue": "2"
+  }
+]

@@ -1,0 +1,381 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates an infrastructure to deploy docker containers on AWS ECS
+Parameters:
+  VPCSetupStackName:
+    Description: Stack name used for CFN of VPC setup
+    Type: String
+  ApplicationName:
+    Type: String
+    Description: The name of the application    
+  InstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    AllowedValues:
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - t3.nano
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3a.nano
+      - t3a.micro    
+      - t3a.small
+      - t3a.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  ECSClusterName:
+    Description: Name of the ECS Cluster
+    Type: String
+  DesiredCapacity:
+    Type: Number
+    Description: Number of EC2 instances to launch in your ECS cluster.
+  AsgMaxSize:
+    Type: Number
+    Description: Maximum number of EC2 instances that can be launched in your ECS cluster.
+  AsgMinSize:
+    Description: Minimum number of EC2 instances that can be launched in your ECS cluster.
+    Type: String
+  ECSAMI:
+    Description: AMI ID
+    Type: String
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 key pair to enable SSH access to the ECS
+      instances
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref 'ECSClusterName'
+  EcsHostSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the ECS hosts that run containers
+      GroupName: !Join ["-", [!Ref 'ECSClusterName', 'instance-SG']]
+      VpcId: 
+        Fn::ImportValue:
+          !Join [':', [!Ref 'VPCSetupStackName', 'VPC']]
+      Tags:
+      - Key: Name
+        Value: "ECS Host Security Group"      
+  EcsSecurityGroupIngressFromPrivateALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress from the private ALB
+      GroupId: !Ref 'EcsHostSecurityGroup'
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref 'PrivateLoadBalancerSG'
+  EcsSecurityGroupIngressFromBastionHost:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress from Bastion SG
+      GroupId: !Ref 'EcsHostSecurityGroup'
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourceSecurityGroupId:
+        Fn::ImportValue:
+          !Join [':', [!Ref 'VPCSetupStackName', 'BastionSecurityGroup']]        
+  ECSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - PrivateLoadBalancer
+      - ECSCluster
+    Properties:
+      VPCZoneIdentifier:
+        - Fn::ImportValue:
+            !Join [':', [!Ref 'VPCSetupStackName', 'PvtSubnetA']]
+        - Fn::ImportValue:
+            !Join [':', [!Ref 'VPCSetupStackName', 'PvtSubnetB']]
+        - Fn::ImportValue:
+            !Join [':', [!Ref 'VPCSetupStackName', 'PvtSubnetC']]
+      LaunchConfigurationName: !Ref 'ContainerInstances'
+      MinSize: !Ref AsgMinSize
+      MaxSize: !Ref 'AsgMaxSize'
+      DesiredCapacity: !Ref 'DesiredCapacity'
+      Tags:
+        - Key: Name
+          Value: !Ref 'ECSClusterName'
+          PropagateAtLaunch: "true"
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: 'true'     
+  ContainerInstances:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !Ref 'ECSAMI'
+      SecurityGroups: [!Ref 'EcsHostSecurityGroup']
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref 'EC2InstanceProfile'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y aws-cfn-bootstrap
+          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles: [!Ref 'EC2RoleForECS']
+  EC2ScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: ECSAutoScalingGroup
+      Cooldown: '120'
+      ScalingAdjustment: '1'
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '60'
+      AlarmDescription: Alarm if CPU too high or metric disappears indicating instance
+        is down
+      Period: '300'
+      AlarmActions:
+      - Ref: EC2ScaleUpPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: ECSAutoScalingGroup
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      MetricName: CPUUtilization
+  EC2ScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: ECSAutoScalingGroup
+      Cooldown: '120'
+      ScalingAdjustment: '-1'
+  CPUAlarmLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '2'
+      Statistic: Average
+      Threshold: '30'
+      AlarmDescription: Alarm if CPU too low or metric disappears indicating instance
+        is down
+      Period: '300'
+      AlarmActions:
+      - Ref: EC2ScaleDownPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value:
+          Ref: ECSAutoScalingGroup
+      ComparisonOperator: LessThanOrEqualToThreshold
+      MetricName: CPUUtilization
+  EC2RoleForECS:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role'
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+        - !Ref Ec2PolicyForECS
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ec2.amazonaws.com]
+          Action: ['sts:AssumeRole']
+  Ec2PolicyForECS:
+      Type: 'AWS::IAM::ManagedPolicy'
+      Properties:
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - 'ecs:CreateCluster'
+                - 'ecs:DeregisterContainerInstance'
+                - 'ecs:DiscoverPollEndpoint'
+                - 'ecs:Poll'
+                - 'ecs:RegisterContainerInstance'
+                - 'ecs:StartTelemetrySession'
+                - 'ecs:Submit*'
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+                - 'ecr:GetAuthorizationToken'
+                - 'ecr:BatchGetImage'
+                - 'ecr:GetDownloadUrlForLayer'
+                - 'cloudformation:SignalResource'
+              Resource: '*'
+  PrivateLoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Join ["-", [!Ref 'ECSClusterName', 'ALB-SG']]
+      GroupDescription: Access to the internal load balancer
+      VpcId: 
+        Fn::ImportValue:
+          !Join [':', [!Ref 'VPCSetupStackName', 'VPC']]      
+      Tags:
+      - Key: Name
+        Value: "LB Security Group"      
+  PrivateLoadBalancerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress to the ALB
+      GroupId: !Ref 'PrivateLoadBalancerSG'
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+  PrivateLoadBalancerEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: Only allow traffic to EC2 instnace SG
+      GroupId: !Ref 'PrivateLoadBalancerSG'
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      DestinationSecurityGroupId: !Ref 'EcsHostSecurityGroup'
+  PrivateLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join ["-", [!Ref 'ECSClusterName', 'ALB']]
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '60'
+      # This load balancer is put into the private subnet, so that there is no
+      # route for the public to even be able to access the private load balancer.
+      Subnets:
+        - Fn::ImportValue:
+            !Join [':', [!Ref 'VPCSetupStackName', 'SubnetA']]
+        - Fn::ImportValue:
+            !Join [':', [!Ref 'VPCSetupStackName', 'SubnetB']]
+        - Fn::ImportValue:
+            !Join [':', [!Ref 'VPCSetupStackName', 'SubnetC']]
+      SecurityGroups: [!Ref 'PrivateLoadBalancerSG']
+  DummyTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Name: !Join ["", [!Ref 'ECSClusterName', 'TG']]
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: 
+        Fn::ImportValue:
+          !Join [':', [!Ref 'VPCSetupStackName', 'VPC']]      
+  PrivateLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - PrivateLoadBalancer
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref 'DummyTargetGroup'
+          Type: 'forward'
+      LoadBalancerArn: !Ref PrivateLoadBalancer
+      Port: 80
+      Protocol: HTTP
+  ECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - !Ref ECSPolicy
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ecs.amazonaws.com]
+          Action: ['sts:AssumeRole']
+  ECSPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              # Rules which allow ECS to attach network interfaces to instances
+              # on your behalf in order for awsvpc networking mode to work right
+              - 'ec2:AttachNetworkInterface'
+              - 'ec2:CreateNetworkInterface'
+              - 'ec2:CreateNetworkInterfacePermission'
+              - 'ec2:DeleteNetworkInterface'
+              - 'ec2:DeleteNetworkInterfacePermission'
+              - 'ec2:Describe*'
+              - 'ec2:DetachNetworkInterface'
+
+              # Rules which allow ECS to update load balancers on your behalf
+              # with the information sabout how to send traffic to your containers
+              - 'elasticloadbalancing:DeregisterInstancesFromLoadBalancer'
+              - 'elasticloadbalancing:DeregisterTargets'
+              - 'elasticloadbalancing:Describe*'
+              - 'elasticloadbalancing:RegisterInstancesWithLoadBalancer'
+              - 'elasticloadbalancing:RegisterTargets'
+            Resource: '*'
+  ECR:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref ApplicationName
+      RepositoryPolicyText:
+          Version: "2012-10-17"
+          Statement:
+              -
+                Sid: AllowPushPull
+                Effect: Allow
+                Principal:
+                  AWS:
+                    - !Sub arn:aws:iam::${AWS::AccountId}:role/${ECSRole}
+                Action:
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:BatchGetImage"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:PutImage"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"                 
+Outputs:
+  ClusterName:
+    Description: The name of the ECS cluster
+    Value: !Ref 'ECSCluster'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'ClusterName' ] ]
+  Url:
+    Description: The url of the load balancer
+    Value: !Join ['', ['http://', !GetAtt 'PrivateLoadBalancer.DNSName']]
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'InternalUrl' ] ]
+  ECSRole:
+    Description: The ARN of the ECS role
+    Value: !GetAtt 'ECSRole.Arn'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'ECSRole' ] ]
+  PrivateLoadBalancer:
+    Description: The ARN of the ALB
+    Value: !Ref PrivateLoadBalancer
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'PrivateLoadBalancer' ] ]
+  PrivateListener:
+    Description: The ARN of the ALB's Listener
+    Value: !Ref PrivateLoadBalancerListener
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'PrivateLoadBalancerListener' ] ]
+  ECRName:
+    Description: The ARN of ECR
+    Value: !Ref ECR
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'ECR' ] ]

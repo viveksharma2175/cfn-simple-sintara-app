@@ -1,0 +1,32 @@
+FROM phusion/passenger-ruby24:1.0.9
+
+# Set correct environment variables.
+ENV HOME /root
+
+# Use baseimage-docker's init process.
+CMD ["/sbin/my_init"]
+
+# Enable nginx and Passenger
+RUN rm -f /etc/service/nginx/down
+
+# Remove the default site
+RUN rm /etc/nginx/sites-enabled/default
+
+# Create virtual host
+ADD vhost.conf /etc/nginx/sites-enabled/app.conf
+
+# Prepare folders
+RUN mkdir /home/app/webapp
+
+# Run Bundle in a cache efficient way
+WORKDIR /tmp
+COPY simple-sinatra-app/Gemfile /tmp/
+# COPY simple-sinatra-app/Gemfile.lock /tmp/
+RUN bundle install
+
+# Add our app
+COPY simple-sinatra-app /home/app/webapp
+RUN chown -R app:app /home/app
+
+# Clean up when done.
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

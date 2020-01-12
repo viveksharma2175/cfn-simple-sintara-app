@@ -1,0 +1,416 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This template creates an infrastructure to deploy docker containers on AWS ECS
+Parameters:
+  VPCCIDRRange:
+    Description: CIDR Range for IP addresses to be assigned to resources in VPC
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  SubnetACIDRRange:
+    Description: CIDR Range for IP addresses to be assigned to resources in Subnet A
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x. 
+  SubnetBCIDRRange:
+    Description: CIDR Range for IP addresses to be assigned to resources in Subnet B
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  SubnetCCIDRRange:
+    Description: CIDR Range for IP addresses to be assigned to resources in Subnet C
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  PvtSubnetACIDRRange:
+    Description: CIDR Range for IP addresses to be assigned to resources in Private Subnet A
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x. 
+  PvtSubnetBCIDRRange:
+    Description: CIDR Range for IP addresses to be assigned to resources in Private Subnet B
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  PvtSubnetCCIDRRange:
+    Description: CIDR Range for IP addresses to be assigned to resources in Private Subnet C
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.  
+  InstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    AllowedValues:
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - t3.nano
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - t3a.nano
+      - t3a.micro    
+      - t3a.small
+      - t3a.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  ECSAMI:
+    Description: AMI ID
+    Type: String
+  NATAMI:
+    Description: AMI ID
+    Type: String
+  AZ1:
+    Description: Availibility Zone One
+    Type: String
+  AZ2:
+    Description: Availibility Zone Two
+    Type: String
+  AZ3:
+    Description: Availibility Zone Three
+    Type: String
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 key pair to enable SSH access to the ECS
+      instances
+
+Conditions:
+  AZ1Exists: !Not [!Equals [!Ref AZ1, '']]
+  AZ2Exists: !Not [!Equals [!Ref AZ2, '']]
+  AZ3Exists: !Not [!Equals [!Ref AZ3, '']]
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      CidrBlock: !Ref VPCCIDRRange
+      Tags:
+      - Key: Name
+        Value: !Join [ '', [ 'VPC / ', !Ref 'AWS::StackName' ] ]      
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Application
+        Value: !Ref AWS::StackName
+      - Key: Name
+        Value: !Join [ '', [ 'InternetGateway / ', !Ref 'AWS::StackName' ] ]
+  GatewayToInternet:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: VPC
+      InternetGatewayId:
+        Ref: InternetGateway
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Join [ '', [ 'RouteTable / ', !Ref 'AWS::StackName' ] ]
+  InternetGatewayRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId:
+        Ref: RouteTable
+      GatewayId:
+        Ref: InternetGateway
+  SubnetRouteTableAssocA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: RouteTable
+      SubnetId:
+        Ref: SubnetA     
+  SubnetRouteTableAssocB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: RouteTable
+      SubnetId:
+        Ref: SubnetB
+  SubnetRouteTableAssocC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: RouteTable
+      SubnetId:
+        Ref: SubnetC
+  SubnetA:
+    Condition: AZ1Exists
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref SubnetACIDRRange
+      Tags:
+      - Key: Application
+        Value: !Ref AWS::StackId
+      - Key: Name
+        Value: !Join [ '', [ 'SubnetA / ', !Ref 'AWS::StackName' ] ]
+      AvailabilityZone: !Ref AZ1
+      MapPublicIpOnLaunch: true
+  SubnetB:
+    Condition: AZ2Exists  
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref SubnetBCIDRRange
+      Tags:
+      - Key: Application
+        Value: !Ref AWS::StackId
+      - Key: Name
+        Value: !Join [ '', [ 'SubnetB / ', !Ref 'AWS::StackName' ] ]
+      AvailabilityZone: !Ref AZ2
+      MapPublicIpOnLaunch: true
+  SubnetC:
+    Condition: AZ3Exists  
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref SubnetCCIDRRange
+      Tags:
+      - Key: Application
+        Value: !Ref AWS::StackId
+      - Key: Name
+        Value: !Join [ '', [ 'SubnetC / ', !Ref 'AWS::StackName' ] ]
+      AvailabilityZone: !Ref AZ3
+      MapPublicIpOnLaunch: true
+  PvtSubnetA:
+    Condition: AZ1Exists  
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref PvtSubnetACIDRRange
+      Tags:
+      - Key: Application
+        Value: !Ref AWS::StackId
+      - Key: Name
+        Value: !Join [ '', [ 'PvtSubnetA / ', !Ref 'AWS::StackName' ] ]
+      AvailabilityZone: !Ref AZ1
+  PvtSubnetB:
+    Condition: AZ2Exists  
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref PvtSubnetBCIDRRange
+      Tags:
+      - Key: Application
+        Value: !Ref AWS::StackId
+      - Key: Name
+        Value: !Join [ '', [ 'PvtSubnetB / ', !Ref 'AWS::StackName' ] ]
+      AvailabilityZone: !Ref AZ2
+  PvtSubnetC:
+    Condition: AZ3Exists  
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      CidrBlock: !Ref PvtSubnetCCIDRRange
+      Tags:
+      - Key: Application
+        Value: !Ref AWS::StackId
+      - Key: Name
+        Value: !Join [ '', [ 'PvtSubnetC / ', !Ref 'AWS::StackName' ] ]
+      AvailabilityZone: !Ref AZ3
+  BastionEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ECSAMI 
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SecurityGroupIds: [!Ref BastionSecurityGroup]
+      SubnetId: !Ref SubnetA
+      IamInstanceProfile:
+        Ref: BastionRoleInstanceProfile
+      Tags:
+      - Key: Name
+        Value: Bastion        
+      UserData:
+        "Fn::Base64":
+          !Sub |
+            #!/bin/bash
+            yum update -y
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: "Bastion Security Group"
+  BastionSGIngress1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+        GroupId:
+          Fn::GetAtt:
+          - BastionSecurityGroup
+          - GroupId
+        IpProtocol: tcp
+        ToPort: 22
+        FromPort: 22
+        CidrIp: 0.0.0.0/0
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  BastionRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: Ec2_s3access
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+            - s3:DeleteObject
+            - s3:GetObject
+            - s3:PutObject
+            - "s3:List*"
+            Resource: "*"
+      Roles:
+      - Ref: BastionRole
+  BastionRoleInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: BastionRole
+  NAT:
+    Type: AWS::EC2::NatGateway
+    DependsOn: NatEIP
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+        - NatEIP
+        - AllocationId
+      SubnetId:
+        Ref: SubnetA
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatRoute:
+    Type: AWS::EC2::Route
+    DependsOn: NAT
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT 
+  PrivateRouteTable:
+    DependsOn: VPC
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      VpcId : !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Join [ '', [ 'PrivateRouteTable / ', !Ref 'AWS::StackName' ] ]
+  PrivateSubnetARouteTableAssociation:
+    DependsOn:
+      - PvtSubnetA 
+      - PrivateRouteTable
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PvtSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateSubnetBRouteTableAssociation:
+    DependsOn:
+      - PvtSubnetB 
+      - PrivateRouteTable
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PvtSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+  PrivateSubnetCRouteTableAssociation:
+    DependsOn:
+      - PvtSubnetC 
+      - PrivateRouteTable
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PvtSubnetC
+      RouteTableId: !Ref PrivateRouteTable            
+  
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'VPC' ] ]  
+  SubnetAID:
+    Description: SubnetA
+    Value: !Ref 'SubnetA'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'SubnetA' ] ]
+  SubnetBID:
+    Description: Subnet B
+    Value: !Ref 'SubnetB'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'SubnetB' ] ]
+  SubnetCID:
+    Description: Subnet C
+    Value: !Ref 'SubnetC'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'SubnetC' ] ]  
+  PvtSubnetAID:
+    Description: Private Subnet A
+    Value: !Ref 'PvtSubnetA'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'PvtSubnetA' ] ]
+  PvtSubnetBID:
+    Description: Private Subnet B
+    Value: !Ref 'PvtSubnetB'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'PvtSubnetB' ] ]
+  PvtSubnetCID:
+    Description: Private Subnet C
+    Value: !Ref 'PvtSubnetC'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'PvtSubnetC' ] ]      
+  NATARN:
+    Description: The ARN of NAT instance
+    Value: !Ref 'NAT'
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'NAT' ] ]
+  BastionARN:
+    Description: The ARN of the Bastion
+    Value: !Ref BastionEC2
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'BastionEC2' ] ]
+  BastionSecurityGroupARN:
+    Description: The ARN of the Bastion Security Group
+    Value: !Ref BastionSecurityGroup
+    Export:
+      Name: !Join [ ':', [ !Ref 'AWS::StackName', 'BastionSecurityGroup' ] ]

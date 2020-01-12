@@ -1,0 +1,58 @@
+[
+  {
+  "ParameterKey": "VPCCIDRRange",
+  "ParameterValue": "20.192.0.0/16"
+  },
+  {
+    "ParameterKey": "SubnetACIDRRange",
+    "ParameterValue": "20.192.1.0/24"
+  },
+  {
+    "ParameterKey": "SubnetBCIDRRange",
+    "ParameterValue": "20.192.2.0/24"
+  },
+  {
+    "ParameterKey": "SubnetCCIDRRange",
+    "ParameterValue": "20.192.3.0/24"
+  },
+  {
+    "ParameterKey": "PvtSubnetACIDRRange",
+    "ParameterValue": "20.192.4.0/24"
+  },
+  {
+    "ParameterKey": "PvtSubnetBCIDRRange",
+    "ParameterValue": "20.192.5.0/24"
+  },
+  {
+    "ParameterKey": "PvtSubnetCCIDRRange",
+    "ParameterValue": "20.192.6.0/24"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t2.micro"
+  },
+  {
+    "ParameterKey": "ECSAMI",
+    "ParameterValue": "ami-0b6bbbb6137afc2a9"
+  },
+  {
+    "ParameterKey": "NATAMI",
+    "ParameterValue": "ami-01866304647fb36d8"
+  },
+  {
+    "ParameterKey": "AZ1",
+    "ParameterValue": "ap-southeast-2a"
+  },
+  {
+    "ParameterKey": "AZ2",
+    "ParameterValue": "ap-southeast-2b"
+  },
+  {
+    "ParameterKey": "AZ3",
+    "ParameterValue": "ap-southeast-2c"
+  },
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "InterviewKey"
+  }
+]
