@@ -30,21 +30,21 @@ The project creates an Ubuntu docker container with all the necessary packages l
 ## Requirements
 - AWS user Account with rights to create the above resources and the `Access Key ID` and the `Secret Access Key` of the user.
 - `Docker` installed on the system from where the commands will be initiated.
-- Key to access the ECS instances. The key named passed in the config files is `InterviewKey`. 
+- Key to access the ECS instances. The key name passed in the config files is `InterviewKey`. Create a key with the name `InterviewKey` and download to the local system. Set the rigths of the file to chmod 400.
 
 ## Assumptions
 
-- The application will only listen to request on port 80, coming from the load balancer.
-- The application will be deployed in the Sydney region. 
-- A new deployment to the cluster will result in overwriting the existing service.  Deployment startegies like blue-green, canary, etc. is not implemented. 
-- The commands will be run on a linux machine. (To run on a windows machine install git bash)
+- To listen to the requests on port 80, coming from the load balancer
+- To be deployed in the Sydney region 
+- To overwrite the existing service release with the new release deployment (deployment startegies like blue-green, canary, etc. are not implemented)
+- To run the commands on a linux machine (to run on a windows machine install git bash)
 
 ## Steps to Create Infrastructure
 1. Get the file on the local system
     - Clone this repository on your local system
     - From the directory of the Dockerfile, open a terminal
     - Make necessary changes to the config.json files if needed.
-    - Fire command to build the docker container, `docker build -t cicd .`. This can take a few minutes during the initial run to get the base image and setup the container with necessary packages. (This may take around 15 minutes approximately for the first run)
+    - Fire command to build the docker container, `docker build -t cicd .` (make note of the dot '.' at the end of the command). This can take a few minutes during the initial run to get the base image and setup the container with necessary packages. (This may take around 15 minutes approximately for the first run)
 2. Create the virtual private cloud in AWS
     - Fire the command in the terminal: 
         `docker run -e "event=vpcsetup" -e "aws_region=<<AWS-REGION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" cicd:latest`
@@ -57,12 +57,12 @@ The project creates an Ubuntu docker container with all the necessary packages l
 5. Deploy the docker image from the ECR repository to ECS   
     - Fire the command by replacing the values in << >> with AWS account details in the terminal: 
         `docker run -e "event=deploy" -e "build_version=<<BUILD-VERSION>>" -e "release_version=<<DEPLOYMENT-VERSION>>" -e "aws_region=<<AWS-REGION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" cicd:latest`
-6. Get the DNS name for the load balancer
+6. Get the DNS name for the load balancer to send request to the application
     - The DNS name can be found from the Load Balancer service page in AWS account (Service > EC2 > Load Balancers)
     OR
-    - Cloudformation page in AWS account, select ClusterSetup and form Outputs tab and the value of the URL
+    - Cloudformation page in AWS account, select ClusterSetup and from Outputs tab and the value of the URL
 
-Incase of any errors, log in to the AWS account and go to the cloudformation service and select the respective stack for the error message
+Incase of any errors, log in to the AWS account and go to the cloudformation service and select the respective stack for the error message.
 
 ## Steps to Destroy Infrastructure
 1. The infrastructure can be destroyed from the cloudformation service in AWS. 
