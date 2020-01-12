@@ -1,6 +1,6 @@
 FROM ubuntu:16.04
 
-# Install all build dependencies
+# Install the build dependencies
 RUN apt-get update && apt-get install -y \
         python \
         python-pip \

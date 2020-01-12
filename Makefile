@@ -1,6 +1,6 @@
 GIT_URL = https://github.com/rea-cruitment/simple-sinatra-app.git
 IMAGE_NAME = simple-sinatra-app
-ECR_POSTFIX ?= dkr.ecr.$(AWS_DEFAULT_REGION).amazonaws.com
+ECR_POSTFIX = dkr.ecr.$(AWS_DEFAULT_REGION).amazonaws.com
 CFN_VPC_TEMPLATE_FILE = infra/vpc.yaml
 VPC_PARAMETER_FILE = infra/vpc_config.json
 CFN_CLUSTER_TEMPLATE_FILE = infra/cluster.yaml
