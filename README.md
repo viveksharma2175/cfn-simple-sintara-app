@@ -26,6 +26,7 @@ The project creates an Ubuntu docker container with all the necessary packages l
 3. The architecture provides reliability as the instances can be spun in different availibility zones to prevent from instance failure in a particular availibility zone.
 4. The server configuration like region, instance type, number of instances and the number of containers, container CPU and memory allocation, path, etc. are configurable using the param file xxxx_config.json in the infra folder.
 5. The application runs a docker container of Phusion Passenger Application + Nginx server.
+6. The docker commands which needs to be fired manually to initiate the actions, can easily be integrated with any CICD platform.
 
 ## Requirements
 - AWS user Account with rights to create the above resources and the `Access Key ID` and the `Secret Access Key` of the user.
