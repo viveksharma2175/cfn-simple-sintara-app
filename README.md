@@ -1,11 +1,12 @@
 # Sinatra Application Deployment to AWS ECS
 
-This project deploys a simple sinatra application to AWS ECS. The application listens on port 80 and returns "Hello World".
+This project deploys a simple sinatra application to AWS ECS. The application runs on port 80 and returns "Hello World".
 
 ## Background
 
 The project creates an Ubuntu docker container with all the necessary packages like git, aws cli, docker, python and jq. This container is then used to create the necessary ECS infrastructure on AWS, clone the sinatra app from git repository and deploy to AWS ECS cluster.
 
+## Architecture
 ![alt text](https://raw.githubusercontent.com/viveksharma2175/cfn-simple-sintara-app/master/gitimages/REA.png)
 
 ## Design
@@ -23,7 +24,8 @@ The project creates an Ubuntu docker container with all the necessary packages l
 
 ## Assumptions
 
-- The application will only listen to request on port 80, coming from the load balancer. 
+- The application will only listen to request on port 80, coming from the load balancer.
+- The application will be deployed in the Sydney region. 
 - A new deployment to the cluster will result in overwriting the existing service.  Deployment startegies like blue-green, canary, etc. is not implemented. 
 - The commands will be run on a linux machine. (To run on a windows machine install git bash)
 
