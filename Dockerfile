@@ -22,6 +22,6 @@ COPY . /tmp/
 
 RUN ls -l
 
-RUN chmod +x start.sh
+RUN chmod +x ./start.sh
 
 CMD ["./start.sh", "${event}", "${build_version}", "${aws_account}", "${aws_access_key_id}", "${aws_secret_access_key}"]
