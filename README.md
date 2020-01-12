@@ -24,7 +24,7 @@ The project creates an Ubuntu docker container with all the necessary packages l
 1. The application is deployed using docker containers which provides flexibility and assurance that it will work on any server with just docker installed.
 2. The conatiners are deployed on ECS cluster with auto scaling enabled which scales the servers and the containers based on CPU usage and provides high availabilty.
 3. The architecture provides reliability as the instances can be spun in different availibility zones to prevent from instance failure in a particular availibility zone.
-4. The sever configuration like region, instance type, number of instances and the number of containers, container CPU and memory allocation, path, etc. are configurable using the param file xxxx_config.json.
+4. The server configuration like region, instance type, number of instances and the number of containers, container CPU and memory allocation, path, etc. are configurable using the param file xxxx_config.json in the infra folder.
 5. The application runs a docker container of Phusion Passenger Application + Nginx server. 
 
 ## Requirements
