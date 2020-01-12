@@ -9,26 +9,6 @@ The project creates an Ubuntu docker container with all the necessary packages l
 ## Architecture
 ![alt text](https://raw.githubusercontent.com/viveksharma2175/cfn-simple-sintara-app/master/gitimages/REA1.png)
 
-## Design
-1. The application is deployed using docker containers which provides flexibility and assurance that it will work on any server with just docker installed.
-2. The conatiners are deployed on ECS cluster with auto scaling enabled which scales the servers and the containers based on CPU usage and provides high availabilty.
-3. The architecture provides reliability as the instances can be spun in different availibility zones.to prevent from instance failure in a particular availibility zone.
-4. The sever configuration like region, instance type, number of instances and the number of containers, container CPU and memory allocation, path, etc. are configurable using the param file xxxx_config.json.
-5. The application runs a docker container of Phusion Passenger Application + Nginx server. 
-
-## Requirements
-- AWS user Account with rights to create the above resources and the `Access Key ID` and the `Secret Access Key`
-- `Docker` installed on the system from where the commands will be initiated
-- Key to access the ECS instances. The key named passed in the config files is InterviewKey. 
-
-
-## Assumptions
-
-- The application will only listen to request on port 80, coming from the load balancer.
-- The application will be deployed in the Sydney region. 
-- A new deployment to the cluster will result in overwriting the existing service.  Deployment startegies like blue-green, canary, etc. is not implemented. 
-- The commands will be run on a linux machine. (To run on a windows machine install git bash)
-
 ## Resource to be Created
 - VPC
 - Public and Private Subnets
@@ -39,6 +19,25 @@ The project creates an Ubuntu docker container with all the necessary packages l
 - Auto scaling of ECS instances in cluster and the containers running in the instances
 - Load Balancer listening to http requests on port 80
 - Bastion Server
+
+## Design
+1. The application is deployed using docker containers which provides flexibility and assurance that it will work on any server with just docker installed.
+2. The conatiners are deployed on ECS cluster with auto scaling enabled which scales the servers and the containers based on CPU usage and provides high availabilty.
+3. The architecture provides reliability as the instances can be spun in different availibility zones to prevent from instance failure in a particular availibility zone.
+4. The sever configuration like region, instance type, number of instances and the number of containers, container CPU and memory allocation, path, etc. are configurable using the param file xxxx_config.json.
+5. The application runs a docker container of Phusion Passenger Application + Nginx server. 
+
+## Requirements
+- AWS user Account with rights to create the above resources and the `Access Key ID` and the `Secret Access Key` of the user.
+- `Docker` installed on the system from where the commands will be initiated.
+- Key to access the ECS instances. The key named passed in the config files is `InterviewKey`. 
+
+## Assumptions
+
+- The application will only listen to request on port 80, coming from the load balancer.
+- The application will be deployed in the Sydney region. 
+- A new deployment to the cluster will result in overwriting the existing service.  Deployment startegies like blue-green, canary, etc. is not implemented. 
+- The commands will be run on a linux machine. (To run on a windows machine install git bash)
 
 ## Steps to Create Infrastructure
 1. Get the file on the local system
