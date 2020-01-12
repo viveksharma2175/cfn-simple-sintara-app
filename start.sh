@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Initialing the ${event}..."
+echo "Initialing the ${event}...."
 export BUILD_VERSION="${build_version}"
 export RELEASE_VERSION="${release_version}"
 export AWS_ACCOUNT="${aws_account}"
