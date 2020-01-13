@@ -36,7 +36,7 @@ The project creates an Ubuntu docker container with all the necessary packages l
 ## Assumptions
 
 - To listen to the requests on port 80, coming from the load balancer
-- To be deployed in the Sydney region
+- To be deployed in the Sydney region ( ap-southeast-2 )
 - To overwrite the existing service release with the new release deployment (deployment startegies like blue-green, canary, etc. are not implemented)
 - To run the commands on a linux machine (to run on a windows machine install git bash)
 
@@ -49,6 +49,9 @@ The project creates an Ubuntu docker container with all the necessary packages l
 2. Create the virtual private cloud in AWS
     - Fire the command in the terminal:
         `docker run -e "event=vpcsetup" -e "aws_region=<<AWS-REGION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" cicd:latest`
+    - Example:
+        `docker run -e "event=vpcsetup" -e "aws_region=ap-southeast-2" -e "aws_account=xxxx1236e6hdhdhd" -e "aws_access_key_id=xxxx63636eydhyd" -e "aws_secret_access_key=xxxx7eyehdhdhd" cicd:latest`
+
 3. To create the ECS cluster and the ECR repository
     - Fire the command in the terminal:
         `docker run -e "event=clustersetup" -e "aws_region=<<AWS-REGION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" cicd:latest`
