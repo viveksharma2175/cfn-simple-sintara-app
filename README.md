@@ -58,10 +58,16 @@ The project creates an Ubuntu docker container with all the necessary packages l
 4. Clone the repo with the sinatra app, build a docker image and push to repository    
     - Fire the command by replacing the values in << >> with AWS account details in the terminal:
         `docker run -e "event=build" -e "aws_region=<<AWS-REGION>>" -e "build_version=<<BUILD-VERSION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" -v /var/run/docker.sock:/var/run/docker.sock -it cicd:latest`
+    - Example: `docker run -e "event=build" -e "aws_region=ap-southeast-2" -e "build_version=1.0.0" -e "aws_account=xxxx1236e6hdhdhd" -e "aws_access_key_id=xxxx63636eydhyd" -e "aws_secret_access_key=xxxx63636eydhyd" -v /var/run/docker.sock:/var/run/docker.sock -it cicd:latest`
+
+Note: The argument `-v /var/run/docker.sock:/var/run/docker.sock` is used because we are using docker command inside docker and it maps the docker.dock in the container
+
 5. Deploy the docker image from the ECR repository to ECS   
     - Fire the command by replacing the values in << >> with AWS account details in the terminal:
         `docker run -e "event=deploy" -e "build_version=<<BUILD-VERSION>>" -e "release_version=<<DEPLOYMENT-VERSION>>" -e "aws_region=<<AWS-REGION>>" -e "aws_account=<<AWS-ACCOUNT-NUMBER>>" -e "aws_access_key_id=<<AWS-ACCESS-ID>>" -e "aws_secret_access_key=<<AWS-SECRET-ACCESS-KEY>>" cicd:latest`
-      Note: the value for `DEPLOYMENT-VERSION` passed into `release_version` should not contain special characters.
+    - Example: `docker run -e "event=deploy" -e "build_version=1.0.0" -e "release_version=1" -e "aws_region=ap-southeast-2" -e "aws_account=xxxx1425wtwy" -e "aws_access_key_id=xxx124e5hh" -e "aws_secret_access_key=xxxx142525" cicd:latest`
+     
+    Note: the value for `DEPLOYMENT-VERSION` passed into `release_version` should not contain special characters.
 6. Get the DNS name for the load balancer to send request to the application
     - The DNS name can be found from the Load Balancer service page in AWS account (Service > EC2 > Load Balancers)
     OR
